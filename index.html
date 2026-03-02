@@ -3,317 +3,178 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RP Messenger 2026</title>
-
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getDatabase, ref, push, onChildAdded, remove, update, set, get, child, query, orderByChild, equalTo } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-
-// ===== Firebase Config =====
-const firebaseConfig = {
-  apiKey: "AIzaSyDo5ji0ABgf5lIwFCW5uJjx_aGt-u-MnHQ",
-  authDomain: "forum-rp-project.firebaseapp.com",
-  databaseURL: "https://forum-rp-project-default-rtdb.firebaseio.com",
-  projectId: "forum-rp-project",
-  storageBucket: "forum-rp-project.firebasestorage.app",
-  messagingSenderId: "285944930982",
-  appId: "1:285944930982:web:3a456ca8ea3f347e970a67",
-  measurementId: "G-TG5J3DXX90"
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getDatabase(app);
-
-window.addEventListener('DOMContentLoaded', () => {
-  const email = document.getElementById("email");
-  const password = document.getElementById("password");
-  const registerBtn = document.getElementById("registerBtn");
-  const loginBtn = document.getElementById("loginBtn");
-  const authContainer = document.getElementById("authContainer");
-  const chatDiv = document.getElementById("chat");
-  const messagesDiv = document.getElementById("messages");
-  const messageInput = document.getElementById("messageInput");
-  const sendBtn = document.getElementById("sendBtn");
-  const adminPanel = document.getElementById("adminPanel");
-  const contactsDiv = document.getElementById("contacts");
-  const searchInput = document.getElementById("searchInput");
-  const menuBtn = document.getElementById("menuBtn");
-  const menuPanel = document.getElementById("menuPanel");
-  const closeMenuBtn = document.getElementById("closeMenuBtn");
-  const nicknameInput = document.getElementById("nickname");
-  const usernameInput = document.getElementById("username");
-  const saveProfileBtn = document.getElementById("saveProfile");
-
-  let currentUserRole = "user";
-  let uidMap = {};
-  let currentChatUid = null;
-  let currentUser = null;
-
-  // ===== Регистрация =====
-  registerBtn.onclick = () => {
-    createUserWithEmailAndPassword(auth, email.value, password.value)
-      .then(userCredential => {
-        const uid = userCredential.user.uid;
-        currentUser = uid;
-        const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(email.value)}&background=0D8ABC&color=fff`;
-        set(ref(db, "users/" + uid), {
-          email: email.value,
-          role: "user",
-          avatar: avatarUrl,
-          contacts: {},
-          nickname: email.value.split("@")[0],
-          username: "@" + Math.floor(Math.random()*10000)
-        });
-      })
-      .catch(err => alert(err.message));
-  };
-
-  // ===== Вход =====
-  loginBtn.onclick = () => {
-    signInWithEmailAndPassword(auth, email.value, password.value)
-      .catch(err => alert(err.message));
-  };
-
-  // ===== Авторизация =====
-  onAuthStateChanged(auth, user => {
-    if(user) {
-      currentUser = user.uid;
-      authContainer.style.display = "none";
-      chatDiv.style.display = "flex";
-      loadUsers();
-      loadMessages();
-      loadProfile();
-    } else {
-      authContainer.style.display = "flex";
-      chatDiv.style.display = "none";
-    }
-  });
-
-  // ===== Загрузка пользователей / контактов =====
-  function loadUsers() {
-    const usersRef = ref(db, "users");
-    onChildAdded(usersRef, snapshot => {
-      const u = snapshot.val();
-      uidMap[snapshot.key] = u;
-      renderContacts();
-    });
-  }
-
-  // ===== Поиск =====
-  searchInput.oninput = () => {
-    renderContacts(searchInput.value.trim().toLowerCase());
-  };
-
-  function renderContacts(filter="") {
-    contactsDiv.innerHTML = "";
-    const keys = Object.keys(uidMap);
-    keys.forEach(uid => {
-      const u = uidMap[uid];
-      if(uid === currentUser) return;
-      if(filter && (!u.username || !u.username.toLowerCase().includes(filter))) return;
-
-      const contactDiv = document.createElement("div");
-      contactDiv.className = "contact";
-      contactDiv.dataset.uid = uid;
-      contactDiv.innerHTML = `<img src="${u.avatar}" class="avatar"><div><b>${u.nickname}</b><br><small>${u.username}</small></div>`;
-      contactDiv.onclick = () => {
-        currentChatUid = uid;
-        messagesDiv.innerHTML = "";
-        loadMessages();
-      };
-      contactsDiv.appendChild(contactDiv);
-    });
-  }
-
-  // ===== Отправка сообщений =====
-  sendBtn.onclick = () => {
-    const text = messageInput.value.trim();
-    if(!text) return;
-
-    if(text === "Admin Code: 6794") {
-      currentUserRole = "admin";
-      adminPanel.style.display = "block";
-      messageInput.value = "";
-      return;
-    }
-
-    let uidTo = currentChatUid || null;
-
-    push(ref(db, "messages"), {
-      text,
-      uidFrom: currentUser,
-      uidTo: uidTo,
-      timestamp: Date.now()
-    });
-
-    // Добавление в контакты
-    if(uidTo) {
-      set(ref(db, `users/${currentUser}/contacts/${uidTo}`), true);
-      set(ref(db, `users/${uidTo}/contacts/${currentUser}`), true);
-    }
-
-    messageInput.value = "";
-  };
-
-  // ===== Загрузка сообщений =====
-  function loadMessages() {
-    messagesDiv.innerHTML = "";
-    const messagesRef = ref(db, "messages");
-    onChildAdded(messagesRef, snapshot => {
-      const msg = snapshot.val();
-      const fromUser = uidMap[msg.uidFrom];
-      if(!fromUser) return;
-
-      if((currentChatUid && (msg.uidFrom === currentChatUid || msg.uidTo === currentChatUid)) ||
-         (!currentChatUid && !msg.uidTo) ||
-         msg.uidFrom === currentUser ||
-         msg.uidTo === currentUser) {
-
-        const msgDiv = document.createElement("div");
-        msgDiv.className = "message " + (msg.uidFrom===currentUser?"right":"left");
-
-        const avatarImg = document.createElement("img");
-        avatarImg.src = fromUser.avatar;
-        avatarImg.className = "msgAvatar";
-
-        const textSpan = document.createElement("span");
-        textSpan.textContent = msg.text;
-        textSpan.className = "msgText";
-
-        msgDiv.appendChild(avatarImg);
-        msgDiv.appendChild(textSpan);
-
-        if(currentUserRole==="admin"){
-          const delBtn = document.createElement("button");
-          delBtn.textContent="Удалить";
-          delBtn.className="adminBtn";
-          delBtn.onclick = ()=>remove(ref(db,"messages/"+snapshot.key));
-          msgDiv.appendChild(delBtn);
-          const editBtn = document.createElement("button");
-          editBtn.textContent="Редактировать";
-          editBtn.className="adminBtn";
-          editBtn.onclick = ()=>{
-            const newText = prompt("Введите новый текст:",msg.text);
-            if(newText) update(ref(db,"messages/"+snapshot.key),{text:newText});
-          };
-          msgDiv.appendChild(editBtn);
-        }
-
-        messagesDiv.appendChild(msgDiv);
-        messagesDiv.scrollTop = messagesDiv.scrollHeight;
-      }
-    });
-  }
-
-  // ===== Меню настроек =====
-  menuBtn.onclick = ()=>menuPanel.style.display="block";
-  closeMenuBtn.onclick = ()=>menuPanel.style.display="none";
-
-  // ===== Загрузка профиля =====
-  function loadProfile(){
-    const userRef = ref(db,"users/"+currentUser);
-    get(userRef).then(snapshot=>{
-      const data = snapshot.val();
-      nicknameInput.value=data.nickname||"";
-      usernameInput.value=data.username||"";
-    });
-  }
-
-  // ===== Сохранение профиля =====
-  saveProfileBtn.onclick=()=>{
-    const nick = nicknameInput.value.trim();
-    let uname = usernameInput.value.trim();
-    if(!nick||!uname) return alert("Введите оба поля");
-    if(uname[0]!=="@") uname = "@"+uname.slice(1);
-
-    // проверка уникальности username
-    const q = query(ref(db,"users"),orderByChild("username"),equalTo(uname));
-    get(q).then(snap=>{
-      if(snap.exists() && !Object.keys(snap.val()).includes(currentUser)){
-        return alert("Username занят!");
-      } else {
-        update(ref(db,"users/"+currentUser),{nickname:nick,username:uname});
-        alert("Профиль обновлён");
-        menuPanel.style.display="none";
-        loadUsers();
-      }
-    });
-  };
-
-});
-</script>
+<title>GhostChat</title>
 
 <style>
-body{font-family:'Segoe UI',sans-serif;margin:0;padding:0;background:#121212;color:#eee;height:100vh;display:flex;flex-direction:column;}
-h1{color:#00BFFF;margin:10px;text-align:center;}
-#authContainer{display:flex;flex-direction:column;align-items:center;gap:5px;margin-bottom:10px;padding-top:20px;}
-input{padding:10px;border-radius:12px;border:none;background:#1E1E1E;color:#eee;width:200px;}
-input:focus{outline:none;box-shadow:0 0 6px #00BFFF;}
-button{padding:10px 15px;border-radius:12px;border:none;cursor:pointer;background:#00BFFF;color:#121212;font-weight:bold;}
-button:hover{background:#0091EA;}
-#chat{display:none;flex:1;width:100%;max-width:900px;margin:auto;display:flex;overflow:hidden;border-radius:20px;background:#1E1E1E;box-shadow:0 0 20px rgba(0,191,255,0.2);}
-#contacts{width:240px;background:#1A1A1A;padding:10px;border-right:1px solid #333;overflow-y:auto;}
-.contact{display:flex;align-items:center;gap:10px;padding:5px;border-radius:12px;cursor:pointer;margin-bottom:5px;}
-.contact:hover{background:#292929;}
-.avatar{width:40px;height:40px;border-radius:50%;}
-#messages{flex:1;padding:10px;display:flex;flex-direction:column;gap:10px;overflow-y:auto;}
-.message{display:flex;align-items:flex-end;gap:10px;padding:8px 12px;border-radius:15px;max-width:80%;}
-.message.right{align-self:flex-end;flex-direction:row-reverse;}
-.msgAvatar{width:35px;height:35px;border-radius:50%;}
-.msgText{padding:8px 12px;border-radius:15px;background:#292929;max-width:70%;}
-.message.right .msgText{background:#00BFFF;color:#121212;}
-.adminBtn{margin-left:5px;background:#FF5555;color:#fff;padding:3px 7px;font-size:12px;border-radius:8px;}
-.input-row{display:flex;gap:10px;margin-top:auto;padding:10px;background:#1E1E1E;}
-#messageInput{flex:1;padding:10px;border-radius:12px;border:none;background:#292929;color:#eee;}
-#adminPanel{display:none;padding:5px 10px;background:#222;color:#FF5555;border-radius:12px;text-align:center;box-shadow:0 0 15px rgba(255,0,0,0.3);margin-bottom:5px;}
-#menuBtn{position:absolute;top:10px;left:10px;font-size:25px;cursor:pointer;color:#00BFFF;}
-#menuPanel{display:none;position:absolute;top:0;left:0;width:250px;height:100%;background:#1E1E1E;box-shadow:5px 0 15px rgba(0,0,0,0.5);padding:10px;z-index:100;}
-#closeMenuBtn{float:right;cursor:pointer;font-size:20px;color:#FF5555;}
-#menuPanel input{width:100%;margin-bottom:10px;}
-#searchInput{width:100%;padding:8px;margin-bottom:10px;border-radius:12px;border:none;background:#292929;color:#eee;}
-</style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: system-ui, -apple-system, sans-serif;
+}
 
+body {
+  display: flex;
+  height: 100vh;
+  background: #0f0f14;
+  color: white;
+}
+
+.sidebar {
+  width: 30%;
+  background: #171722;
+  border-right: 1px solid #26263a;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-header {
+  padding: 15px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid #26263a;
+}
+
+.sidebar-header img {
+  width: 35px;
+  height: 35px;
+  border-radius: 50%;
+}
+
+.chat-list {
+  overflow-y: auto;
+}
+
+.chat-item {
+  padding: 15px;
+  cursor: pointer;
+  border-bottom: 1px solid #202030;
+  transition: 0.2s;
+}
+
+.chat-item:hover {
+  background: #23233a;
+}
+
+.main {
+  width: 70%;
+  display: flex;
+  flex-direction: column;
+}
+
+.main-header {
+  padding: 15px;
+  border-bottom: 1px solid #26263a;
+  background: #171722;
+}
+
+.messages {
+  flex: 1;
+  padding: 15px;
+  overflow-y: auto;
+}
+
+.message {
+  margin-bottom: 10px;
+  padding: 10px 15px;
+  border-radius: 18px;
+  max-width: 60%;
+}
+
+.sent {
+  background: #6d5dfc;
+  align-self: flex-end;
+}
+
+.received {
+  background: #2a2a3d;
+  align-self: flex-start;
+}
+
+.input-area {
+  display: flex;
+  padding: 10px;
+  border-top: 1px solid #26263a;
+  background: #171722;
+}
+
+.input-area input {
+  flex: 1;
+  padding: 10px;
+  border-radius: 20px;
+  border: none;
+  outline: none;
+  background: #23233a;
+  color: white;
+}
+
+.input-area button {
+  margin-left: 10px;
+  padding: 10px 20px;
+  border-radius: 20px;
+  border: none;
+  background: #6d5dfc;
+  color: white;
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    display: none;
+  }
+  .main {
+    width: 100%;
+  }
+}
+</style>
 </head>
+
 <body>
 
-<h1>RP Messenger 2026</h1>
-
-<div id="authContainer">
-<input id="email" placeholder="Email">
-<input id="password" type="password" placeholder="Пароль">
-<div style="display:flex;gap:5px;">
-<button id="registerBtn">Регистрация</button>
-<button id="loginBtn">Войти</button>
-</div>
-</div>
-
-<div id="adminPanel">Админ-панель активирована</div>
-
-<div id="chat">
-  <div id="contacts">
-    <input id="searchInput" placeholder="Поиск по username">
+<div class="sidebar">
+  <div class="sidebar-header">
+    <img src="logo.png" alt="Logo">
+    <h3>GhostChat</h3>
   </div>
-  <div style="flex:1;display:flex;flex-direction:column;">
-    <div id="messages"></div>
-    <div class="input-row">
-      <input id="messageInput" placeholder="Введите сообщение">
-      <button id="sendBtn">Отправить</button>
-    </div>
+  <div class="chat-list">
+    <div class="chat-item">Дмитрий</div>
+    <div class="chat-item">FBI RP</div>
+    <div class="chat-item">Arizona Team</div>
   </div>
 </div>
 
-<div id="menuBtn">&#9776;</div>
-<div id="menuPanel">
-  <div id="closeMenuBtn">X</div>
-  <h3>Настройки аккаунта</h3>
-  <input id="nickname" placeholder="Ник">
-  <input id="username" placeholder="@username">
-  <button id="saveProfile">Сохранить</button>
-  <h3>Настройки чатов</h3>
-  <p>Здесь можно добавить темы, уведомления и др.</p>
+<div class="main">
+  <div class="main-header">
+    <h3>Дмитрий</h3>
+  </div>
+
+  <div class="messages" id="messages">
+    <div class="message received">Привет 👋</div>
+    <div class="message sent">Это почти Telegram, но наш 😎</div>
+  </div>
+
+  <div class="input-area">
+    <input type="text" id="messageInput" placeholder="Написать сообщение...">
+    <button onclick="sendMessage()">➤</button>
+  </div>
 </div>
+
+<script>
+function sendMessage() {
+  const input = document.getElementById("messageInput");
+  const messages = document.getElementById("messages");
+
+  if (input.value.trim() !== "") {
+    const msg = document.createElement("div");
+    msg.className = "message sent";
+    msg.innerText = input.value;
+    messages.appendChild(msg);
+    input.value = "";
+    messages.scrollTop = messages.scrollHeight;
+  }
+}
+</script>
 
 </body>
 </html>
