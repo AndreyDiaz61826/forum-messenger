@@ -3,24 +3,34 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GhostChat</title>
-
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<title>GhostRoom</title>
 
 <style>
-body{margin:0;font-family:system-ui;background:#0f0f14;color:white}
-.screen{display:none;height:100vh;justify-content:center;align-items:center;flex-direction:column}
-input,textarea{
+body{
+  margin:0;
+  font-family:system-ui;
+  background:#0f0f14;
+  color:white;
+}
+
+.screen{
+  height:100vh;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+}
+
+input{
   padding:12px;
   margin:8px;
   border:none;
   border-radius:15px;
-  width:260px;
+  width:250px;
   background:#23233a;
   color:white;
 }
+
 button{
   padding:10px 20px;
   border:none;
@@ -29,156 +39,164 @@ button{
   color:white;
   cursor:pointer;
 }
-.app{display:none;height:100vh}
-.sidebar{width:30%;background:#171722;float:left;height:100%;overflow-y:auto}
-.main{width:70%;float:left;height:100%;display:flex;flex-direction:column}
-.messages{flex:1;padding:15px;overflow-y:auto}
-.message{padding:10px 15px;margin-bottom:10px;border-radius:18px;max-width:60%}
-.sent{background:#6d5dfc;margin-left:auto}
-.received{background:#2a2a3d}
-.input-area{display:flex;padding:10px;background:#171722}
-.input-area input{flex:1}
+
+.chat{
+  display:none;
+  height:100vh;
+  display:flex;
+  flex-direction:column;
+}
+
+.messages{
+  flex:1;
+  overflow-y:auto;
+  padding:15px;
+}
+
+.message{
+  background:#23233a;
+  padding:10px;
+  border-radius:15px;
+  margin-bottom:10px;
+  position:relative;
+}
+
+.message-header{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-size:14px;
+  margin-bottom:5px;
+}
+
+.avatar{
+  width:25px;
+  height:25px;
+  border-radius:50%;
+}
+
+.controls{
+  position:absolute;
+  right:10px;
+  top:10px;
+  font-size:12px;
+  cursor:pointer;
+  opacity:0.6;
+}
+
+.controls span{
+  margin-left:5px;
+}
+
+.input-area{
+  display:flex;
+  padding:10px;
+  background:#171722;
+}
+
+.input-area input{
+  flex:1;
+}
 </style>
 </head>
 <body>
 
-<!-- LOGIN -->
-<div class="screen" id="login" style="display:flex">
-  <h2>Вход по номеру 👻</h2>
-  <input type="tel" id="phone" placeholder="+34 600 000 000">
-  <div id="recaptcha"></div>
-  <button onclick="sendCode()">Получить код</button>
+<div class="screen" id="login">
+  <h2>Введите пароль доступа 🔐</h2>
+  <input type="password" id="password" placeholder="Пароль">
+  <button onclick="enter()">Войти</button>
 </div>
 
-<!-- VERIFY -->
-<div class="screen" id="verify">
-  <h2>Введите код</h2>
-  <input type="text" id="code" placeholder="Код из SMS">
-  <button onclick="verifyCode()">Подтвердить</button>
+<div class="screen" id="nicknameScreen" style="display:none">
+  <h2>Введите ник</h2>
+  <input type="text" id="nickname" placeholder="Ваш ник">
+  <button onclick="startChat()">Продолжить</button>
 </div>
 
-<!-- PROFILE SETUP -->
-<div class="screen" id="profile">
-  <h2>Создание профиля</h2>
-  <input type="text" id="name" placeholder="Name">
-  <input type="text" id="username" placeholder="User Name">
-  <textarea id="description" placeholder="Description"></textarea>
-  <button onclick="saveProfile()">Сохранить</button>
-</div>
+<div class="chat" id="chat">
+  <div class="messages" id="messages"></div>
 
-<!-- MAIN APP -->
-<div class="app" id="app">
-  <div class="sidebar" id="chatList"></div>
-  <div class="main">
-    <div class="messages" id="messages"></div>
-    <div class="input-area">
-      <input type="text" id="messageInput" placeholder="Сообщение...">
-      <button onclick="sendMessage()">➤</button>
-    </div>
+  <div class="input-area">
+    <input type="text" id="messageInput" placeholder="Сообщение...">
+    <button onclick="sendMessage()">➤</button>
   </div>
 </div>
 
 <script>
-const firebaseConfig = {
-  apiKey: "ТВОЙ_API_KEY",
-  authDomain: "ТВОЙ_AUTH_DOMAIN",
-  projectId: "ТВОЙ_PROJECT_ID"
-};
+let role = "user";
+let avatar = "";
+let username = "Аноним";
 
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
+function enter(){
+  const pass = document.getElementById("password").value;
 
-window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha');
+  if(pass === "Benjamin"){
+    role = "user";
+    avatar = "privacy-mask-icon-design-vector-260nw-1715757265.jpg";
+  }
+  else if(pass === "Burmese"){
+    role = "admin";
+    avatar = "YetAnotherBot.jpg";
+  }
+  else{
+    alert("Неверный пароль");
+    return;
+  }
 
-function showScreen(id){
-  document.querySelectorAll(".screen").forEach(s=>s.style.display="none");
-  document.getElementById(id).style.display="flex";
+  document.getElementById("login").style.display="none";
+  document.getElementById("nicknameScreen").style.display="flex";
 }
 
-function sendCode(){
-  const phone=document.getElementById("phone").value;
-  auth.signInWithPhoneNumber(phone,window.recaptchaVerifier)
-  .then(result=>{
-    window.confirmationResult=result;
-    showScreen("verify");
-  });
-}
+function startChat(){
+  const nickInput = document.getElementById("nickname").value;
+  if(nickInput.trim() !== ""){
+    username = nickInput;
+  }
 
-function verifyCode(){
-  const code=document.getElementById("code").value;
-  confirmationResult.confirm(code)
-  .then(async result=>{
-    const userDoc=await db.collection("users").doc(result.user.uid).get();
-    if(userDoc.exists){
-      startApp();
-    }else{
-      showScreen("profile");
-    }
-  });
-}
-
-function saveProfile(){
-  const user=auth.currentUser;
-  db.collection("users").doc(user.uid).set({
-    name:document.getElementById("name").value,
-    username:document.getElementById("username").value,
-    description:document.getElementById("description").value,
-    phone:user.phoneNumber
-  }).then(()=>startApp());
-}
-
-function startApp(){
-  document.querySelectorAll(".screen").forEach(s=>s.style.display="none");
-  document.getElementById("app").style.display="block";
-  loadChats();
-}
-
-function loadChats(){
-  db.collection("chats").onSnapshot(snapshot=>{
-    const list=document.getElementById("chatList");
-    list.innerHTML="";
-    snapshot.forEach(doc=>{
-      const div=document.createElement("div");
-      div.className="chat-item";
-      div.innerText=doc.id;
-      div.onclick=()=>openChat(doc.id);
-      list.appendChild(div);
-    });
-  });
-}
-
-let currentChat=null;
-
-function openChat(chatId){
-  currentChat=chatId;
-  db.collection("chats").doc(chatId)
-  .collection("messages")
-  .orderBy("time")
-  .onSnapshot(snapshot=>{
-    const box=document.getElementById("messages");
-    box.innerHTML="";
-    snapshot.forEach(doc=>{
-      const data=doc.data();
-      const div=document.createElement("div");
-      div.className="message "+(data.uid===auth.currentUser.uid?"sent":"received");
-      div.innerText=data.text;
-      box.appendChild(div);
-    });
-  });
+  document.getElementById("nicknameScreen").style.display="none";
+  document.getElementById("chat").style.display="flex";
 }
 
 function sendMessage(){
-  const text=document.getElementById("messageInput").value;
-  if(!text||!currentChat)return;
-  db.collection("chats").doc(currentChat)
-  .collection("messages")
-  .add({
-    text:text,
-    uid:auth.currentUser.uid,
-    time:firebase.firestore.FieldValue.serverTimestamp()
-  });
+  const text = document.getElementById("messageInput").value;
+  if(!text.trim()) return;
+
+  const msgDiv = document.createElement("div");
+  msgDiv.className = "message";
+
+  msgDiv.innerHTML = `
+    <div class="message-header">
+      <img src="${avatar}" class="avatar">
+      <strong>${username}</strong>
+      ${role === "admin" ? "👑" : ""}
+    </div>
+    <div class="message-text">${text}</div>
+    <div class="controls">
+      <span onclick="editMessage(this)">✏️</span>
+      <span onclick="deleteMessage(this)">🗑</span>
+    </div>
+  `;
+
+  document.getElementById("messages").appendChild(msgDiv);
   document.getElementById("messageInput").value="";
+}
+
+function deleteMessage(el){
+  const message = el.closest(".message");
+  if(role === "admin"){
+    message.remove();
+  } else {
+    message.remove();
+  }
+}
+
+function editMessage(el){
+  const message = el.closest(".message");
+  const textDiv = message.querySelector(".message-text");
+  const newText = prompt("Редактировать сообщение:", textDiv.innerText);
+  if(newText !== null){
+    textDiv.innerText = newText;
+  }
 }
 </script>
 
