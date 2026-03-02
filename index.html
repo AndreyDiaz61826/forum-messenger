@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Мессенджер RP</title>
+  <script type="module">
+    // Firebase SDKs
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { getDatabase, ref, push, onChildAdded } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+    // Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyDo5ji0ABgf5lIwFCW5uJjx_aGt-u-MnHQ",
+      authDomain: "forum-rp-project.firebaseapp.com",
+      databaseURL: "https://forum-rp-project-default-rtdb.firebaseio.com",
+      projectId: "forum-rp-project",
+      storageBucket: "forum-rp-project.firebasestorage.app",
+      messagingSenderId: "285944930982",
+      appId: "1:285944930982:web:3a456ca8ea3f347e970a67",
+      measurementId: "G-TG5J3DXX90"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
+
+    // DOM elements
+    window.addEventListener('DOMContentLoaded', () => {
+      const email = document.getElementById("email");
+      const password = document.getElementById("password");
+      const registerBtn = document.getElementById("registerBtn");
+      const loginBtn = document.getElementById("loginBtn");
+      const chatDiv = document.getElementById("chat");
+      const messagesDiv = document.getElementById("messages");
+      const messageInput = document.getElementById("messageInput");
+      const sendBtn = document.getElementById("sendBtn");
+
+      // Registration
+      registerBtn.onclick = () => {
+        createUserWithEmailAndPassword(auth, email.value, password.value)
+          .catch(err => alert(err.message));
+      }
+
+      // Login
+      loginBtn.onclick = () => {
+        signInWithEmailAndPassword(auth, email.value, password.value)
+          .catch(err => alert(err.message));
+      }
+
+      // Auth state
+      onAuthStateChanged(auth, user => {
+        if(user) {
+          chatDiv.style.display = "block";
+          loadMessages();
+        } else {
+          chatDiv.style.display = "none";
+        }
+      });
+
+      // Send message
+      sendBtn.onclick = () => {
+        if(messageInput.value.trim() !== "") {
+          push(ref(db, "messages"), {
+            text: messageInput.value,
+            uid: auth.currentUser.uid
+          });
+          messageInput.value = "";
+        }
+      }
+
+      // Load messages
+      function loadMessages() {
+        onChildAdded(ref(db, "messages"), snapshot => {
+          const msg = snapshot.val();
+          const p = document.createElement("p");
+          p.textContent = msg.text;
+          messagesDiv.appendChild(p);
+        });
+      }
+    });
+  </script>
+  <style>
+    body { font-family: Arial; padding: 20px; background: #121212; color: #eee; }
+    input { padding: 5px; margin: 5px; }
+    button { padding: 5px 10px; margin: 5px; }
+    #chat { display: none; margin-top: 20px; }
+    #messages p { background: #1c1c1c; padding: 5px; border-radius: 5px; margin: 3px 0; }
+  </style>
+</head>
+<body>
+  <h1>Мессенджер RP</h1>
+  <input id="email" placeholder="Email">
+  <input id="password" type="password" placeholder="Пароль">
+  <button id="registerBtn">Регистрация</button>
+  <button id="loginBtn">Войти</button>
+
+  <div id="chat">
+    <h2>Чат</h2>
+    <div id="messages"></div>
+    <input id="messageInput" placeholder="Введите сообщение">
+    <button id="sendBtn">Отправить</button>
+  </div>
+</body>
+</html>
