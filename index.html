@@ -5,174 +5,196 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GhostChat</title>
 
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
 <style>
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  font-family: system-ui, -apple-system, sans-serif;
+body { margin:0; font-family:system-ui; background:#0f0f14; color:white; }
+
+.login-screen {
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
 }
 
-body {
-  display: flex;
-  height: 100vh;
-  background: #0f0f14;
-  color: white;
+input {
+  padding:12px;
+  border-radius:20px;
+  border:none;
+  margin:10px;
+  width:250px;
+  background:#23233a;
+  color:white;
 }
+
+button {
+  padding:10px 20px;
+  border:none;
+  border-radius:20px;
+  background:#6d5dfc;
+  color:white;
+  cursor:pointer;
+}
+
+.app { display:none; height:100vh; }
 
 .sidebar {
-  width: 30%;
-  background: #171722;
-  border-right: 1px solid #26263a;
-  display: flex;
-  flex-direction: column;
-}
-
-.sidebar-header {
-  padding: 15px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border-bottom: 1px solid #26263a;
-}
-
-.sidebar-header img {
-  width: 35px;
-  height: 35px;
-  border-radius: 50%;
-}
-
-.chat-list {
-  overflow-y: auto;
+  width:30%;
+  background:#171722;
+  float:left;
+  height:100%;
+  overflow-y:auto;
 }
 
 .chat-item {
-  padding: 15px;
-  cursor: pointer;
-  border-bottom: 1px solid #202030;
-  transition: 0.2s;
+  padding:15px;
+  border-bottom:1px solid #202030;
+  cursor:pointer;
 }
 
-.chat-item:hover {
-  background: #23233a;
-}
+.chat-item:hover { background:#23233a; }
 
 .main {
-  width: 70%;
-  display: flex;
-  flex-direction: column;
-}
-
-.main-header {
-  padding: 15px;
-  border-bottom: 1px solid #26263a;
-  background: #171722;
+  width:70%;
+  float:left;
+  display:flex;
+  flex-direction:column;
+  height:100%;
 }
 
 .messages {
-  flex: 1;
-  padding: 15px;
-  overflow-y: auto;
+  flex:1;
+  padding:15px;
+  overflow-y:auto;
 }
 
 .message {
-  margin-bottom: 10px;
-  padding: 10px 15px;
-  border-radius: 18px;
-  max-width: 60%;
+  margin-bottom:10px;
+  padding:10px 15px;
+  border-radius:18px;
+  max-width:60%;
 }
 
-.sent {
-  background: #6d5dfc;
-  align-self: flex-end;
-}
-
-.received {
-  background: #2a2a3d;
-  align-self: flex-start;
-}
+.sent { background:#6d5dfc; margin-left:auto; }
+.received { background:#2a2a3d; }
 
 .input-area {
-  display: flex;
-  padding: 10px;
-  border-top: 1px solid #26263a;
-  background: #171722;
+  display:flex;
+  padding:10px;
+  background:#171722;
 }
 
-.input-area input {
-  flex: 1;
-  padding: 10px;
-  border-radius: 20px;
-  border: none;
-  outline: none;
-  background: #23233a;
-  color: white;
-}
+.input-area input { flex:1; }
 
-.input-area button {
-  margin-left: 10px;
-  padding: 10px 20px;
-  border-radius: 20px;
-  border: none;
-  background: #6d5dfc;
-  color: white;
-  cursor: pointer;
-}
-
-@media (max-width: 768px) {
-  .sidebar {
-    display: none;
-  }
-  .main {
-    width: 100%;
-  }
+@media(max-width:768px){
+  .sidebar{ width:100%; height:40%; }
+  .main{ width:100%; height:60%; }
 }
 </style>
 </head>
-
 <body>
 
-<div class="sidebar">
-  <div class="sidebar-header">
-    <img src="logo.png" alt="Logo">
-    <h3>GhostChat</h3>
-  </div>
-  <div class="chat-list">
-    <div class="chat-item">Дмитрий</div>
-    <div class="chat-item">FBI RP</div>
-    <div class="chat-item">Arizona Team</div>
-  </div>
+<div class="login-screen" id="login">
+  <h2>Вход в GhostChat 👻</h2>
+  <input type="tel" id="phone" placeholder="+34 600 000 000">
+  <div id="recaptcha"></div>
+  <button onclick="sendCode()">Получить код</button>
+  <input type="text" id="code" placeholder="Код из SMS">
+  <button onclick="verifyCode()">Войти</button>
 </div>
 
-<div class="main">
-  <div class="main-header">
-    <h3>Дмитрий</h3>
-  </div>
-
-  <div class="messages" id="messages">
-    <div class="message received">Привет 👋</div>
-    <div class="message sent">Это почти Telegram, но наш 😎</div>
-  </div>
-
-  <div class="input-area">
-    <input type="text" id="messageInput" placeholder="Написать сообщение...">
-    <button onclick="sendMessage()">➤</button>
+<div class="app" id="app">
+  <div class="sidebar" id="chatList"></div>
+  <div class="main">
+    <div class="messages" id="messages"></div>
+    <div class="input-area">
+      <input type="text" id="messageInput" placeholder="Сообщение...">
+      <button onclick="sendMessage()">➤</button>
+    </div>
   </div>
 </div>
 
 <script>
-function sendMessage() {
-  const input = document.getElementById("messageInput");
-  const messages = document.getElementById("messages");
+// ВСТАВЬ СВОЙ firebaseConfig
+const firebaseConfig = {
+  apiKey: "ТВОЙ_KEY",
+  authDomain: "ТВОЙ_DOMAIN",
+  projectId: "ТВОЙ_ID"
+};
 
-  if (input.value.trim() !== "") {
-    const msg = document.createElement("div");
-    msg.className = "message sent";
-    msg.innerText = input.value;
-    messages.appendChild(msg);
-    input.value = "";
-    messages.scrollTop = messages.scrollHeight;
-  }
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha', {
+  size: 'normal'
+});
+
+function sendCode(){
+  const phone = document.getElementById("phone").value;
+  auth.signInWithPhoneNumber(phone, window.recaptchaVerifier)
+    .then(result => window.confirmationResult = result);
+}
+
+function verifyCode(){
+  const code = document.getElementById("code").value;
+  confirmationResult.confirm(code).then(result=>{
+    document.getElementById("login").style.display="none";
+    document.getElementById("app").style.display="block";
+    loadChats();
+  });
+}
+
+function loadChats(){
+  db.collection("chats").onSnapshot(snapshot=>{
+    const list = document.getElementById("chatList");
+    list.innerHTML="";
+    snapshot.forEach(doc=>{
+      const div=document.createElement("div");
+      div.className="chat-item";
+      div.innerText=doc.id;
+      div.onclick=()=>openChat(doc.id);
+      list.appendChild(div);
+    });
+  });
+}
+
+let currentChat=null;
+
+function openChat(chatId){
+  currentChat=chatId;
+  db.collection("chats").doc(chatId)
+    .collection("messages")
+    .orderBy("time")
+    .onSnapshot(snapshot=>{
+      const msgBox=document.getElementById("messages");
+      msgBox.innerHTML="";
+      snapshot.forEach(doc=>{
+        const data=doc.data();
+        const div=document.createElement("div");
+        div.className="message "+(data.uid===auth.currentUser.uid?"sent":"received");
+        div.innerText=data.text;
+        msgBox.appendChild(div);
+      });
+    });
+}
+
+function sendMessage(){
+  const text=document.getElementById("messageInput").value;
+  if(!text||!currentChat)return;
+
+  db.collection("chats").doc(currentChat)
+    .collection("messages")
+    .add({
+      text:text,
+      uid:auth.currentUser.uid,
+      time:firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+  document.getElementById("messageInput").value="";
 }
 </script>
 
