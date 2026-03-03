@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -24,7 +24,7 @@ color:white;
 header{
 padding:16px;
 background:#111827;
-font-size:20px;
+font-size:18px;
 font-weight:600;
 text-align:center;
 }
@@ -32,7 +32,7 @@ text-align:center;
 #chat{
 flex:1;
 overflow-y:auto;
-padding:15px;
+padding:16px;
 display:flex;
 flex-direction:column;
 gap:14px;
@@ -45,8 +45,8 @@ align-items:flex-end;
 }
 
 .avatar{
-width:48px;
-height:48px;
+width:52px;
+height:52px;
 border-radius:50%;
 object-fit:cover;
 border:2px solid #1f2937;
@@ -103,16 +103,18 @@ cursor:pointer;
 padding:10px;
 text-align:center;
 background:#1f2937;
+display:none;
 }
 </style>
 </head>
+
 <body>
 
 <header>Friends Chat</header>
 
 <div id="chat"></div>
 
-<div class="admin-panel" id="adminPanel" style="display:none;">
+<div class="admin-panel" id="adminPanel">
 <button onclick="clearChat()">Очистить чат</button>
 </div>
 
@@ -127,37 +129,38 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/fireba
 import { getDatabase, ref, push, onValue, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const firebaseConfig = {
-apiKey: "ВСТАВЬ_СВОЙ_API_KEY",
-authDomain: "ВСТАВЬ_СВОЙ_AUTH_DOMAIN",
-databaseURL: "ВСТАВЬ_СВОЙ_DATABASE_URL",
-projectId: "ВСТАВЬ_СВОЙ_PROJECT_ID",
-storageBucket: "ВСТАВЬ_СВОЙ_STORAGE_BUCKET",
-messagingSenderId: "ВСТАВЬ_СВОЙ_SENDER_ID",
-appId: "ВСТАВЬ_СВОЙ_APP_ID"
+  apiKey: "AIzaSyDo5ji0ABgf5lIwFCW5uJjx_aGt-u-MnHQ",
+  authDomain: "forum-rp-project.firebaseapp.com",
+  databaseURL: "https://forum-rp-project-default-rtdb.firebaseio.com",
+  projectId: "forum-rp-project",
+  storageBucket: "forum-rp-project.firebasestorage.app",
+  messagingSenderId: "285944930982",
+  appId: "1:285944930982:web:3a456ca8ea3f347e970a67"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
+const chatRef = ref(db,"messages");
 
 let nickname = localStorage.getItem("nickname");
 let role = localStorage.getItem("role");
+let avatar = localStorage.getItem("avatar");
 
 if(!nickname){
 nickname = prompt("Введите ник:") || "Аноним";
 localStorage.setItem("nickname", nickname);
 }
 
+if(!role){
 let password = prompt("Введите пароль доступа:");
 
 if(password === "Benjamin"){
 role = "user";
-localStorage.setItem("role","user");
-localStorage.setItem("avatar","privacy-mask-icon-design-vector-260nw-1715757265.jpg");
+avatar = "privacy-mask-icon-design-vector-260nw-1715757265.jpg";
 }
 else if(password === "Burmese"){
 role = "admin";
-localStorage.setItem("role","admin");
-localStorage.setItem("avatar","YetAnotherBot.jpg");
+avatar = "YetAnotherBot.jpg";
 document.getElementById("adminPanel").style.display="block";
 }
 else{
@@ -165,13 +168,17 @@ alert("Неверный пароль");
 location.reload();
 }
 
-const avatar = localStorage.getItem("avatar");
+localStorage.setItem("role", role);
+localStorage.setItem("avatar", avatar);
+}
 
-const chatRef = ref(db,"messages");
+if(role === "admin"){
+document.getElementById("adminPanel").style.display="block";
+}
 
 window.sendMessage = function(){
 const input = document.getElementById("messageInput");
-if(input.value.trim() === "") return;
+if(!input.value.trim()) return;
 
 push(chatRef,{
 name:nickname,
@@ -214,10 +221,13 @@ chat.scrollTop = chat.scrollHeight;
 
 window.clearChat = function(){
 if(role === "admin"){
+if(confirm("Очистить весь чат?")){
 remove(chatRef);
+}
 }
 }
 
 </script>
+
 </body>
 </html>
