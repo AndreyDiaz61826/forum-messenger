@@ -3,11 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Messenger</title>
-
+<title>Dark Messenger</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:system-ui;}
-body{background:#0f172a;color:white;height:100vh;display:flex;}
+body{background:#0b0f1a;color:white;height:100vh;display:flex;}
 
 #authScreen{
 width:100%;
@@ -31,17 +30,19 @@ flex-direction:column;
 gap:12px;
 }
 
-input{
+input, button{
 padding:12px;
 border-radius:12px;
 border:none;
 outline:none;
+font-size:15px;
+}
+
+input[type="checkbox"]{
+width:auto;
 }
 
 button{
-padding:12px;
-border-radius:12px;
-border:none;
 background:#2563eb;
 color:white;
 cursor:pointer;
@@ -51,6 +52,7 @@ cursor:pointer;
 display:none;
 width:100%;
 height:100vh;
+flex-direction:row;
 }
 
 #dialogs{
@@ -136,6 +138,7 @@ flex:1;
 <h3>Вход</h3>
 <input id="loginUsername" placeholder="@username">
 <input id="loginPassword" type="password" placeholder="Пароль">
+<label><input type="checkbox" id="rememberMe"> Запомнить меня</label>
 <button onclick="login()">Войти</button>
 
 <hr>
@@ -188,113 +191,129 @@ let currentUser=null;
 let currentChat=null;
 
 function chatId(a,b){
-return [a,b].sort().join("_");
+  return [a,b].sort().join("_");
+}
+
+// Проверяем, есть ли сохранённый пользователь
+const savedUser = localStorage.getItem("currentUser");
+if(savedUser){
+  currentUser = JSON.parse(savedUser);
+  authScreen.style.display="none";
+  app.style.display="flex";
+  loadDialogs();
 }
 
 window.register=async function(){
-let name=regName.value.trim();
-let username=regUsername.value.trim();
-let password=regPassword.value;
+  let name=regName.value.trim();
+  let username=regUsername.value.trim();
+  let password=regPassword.value;
 
-if(!username.startsWith("@")) username="@"+username;
+  if(!username.startsWith("@")) username="@"+username;
 
-const snap=await get(child(ref(db),"users/"+username));
-if(snap.exists()) return alert("Username занят");
+  const snap=await get(child(ref(db),"users/"+username));
+  if(snap.exists()) return alert("Username занят");
 
-await set(ref(db,"users/"+username),{name,password});
-alert("Аккаунт создан");
+  await set(ref(db,"users/"+username),{name,password});
+  alert("Аккаунт создан");
 }
 
 window.login=async function(){
-let username=loginUsername.value.trim();
-let password=loginPassword.value;
+  let username=loginUsername.value.trim();
+  let password=loginPassword.value;
+  const remember=document.getElementById("rememberMe").checked;
 
-if(!username.startsWith("@")) username="@"+username;
+  if(!username.startsWith("@")) username="@"+username;
 
-const snap=await get(child(ref(db),"users/"+username));
-if(!snap.exists()) return alert("Не найден");
+  const snap=await get(child(ref(db),"users/"+username));
+  if(!snap.exists()) return alert("Не найден");
 
-if(snap.val().password!==password) return alert("Неверный пароль");
+  if(snap.val().password!==password) return alert("Неверный пароль");
 
-currentUser={username,name:snap.val().name};
+  currentUser={username,name:snap.val().name};
 
-authScreen.style.display="none";
-app.style.display="flex";
+  if(remember){
+    localStorage.setItem("currentUser",JSON.stringify(currentUser));
+  } else {
+    localStorage.removeItem("currentUser");
+  }
 
-loadDialogs();
+  authScreen.style.display="none";
+  app.style.display="flex";
+
+  loadDialogs();
 }
 
 function loadDialogs(){
-onValue(ref(db,"users"),(snapshot)=>{
-dialogs.innerHTML="";
-snapshot.forEach(child=>{
-if(child.key===currentUser.username) return;
-const div=document.createElement("div");
-div.className="dialog";
-div.innerText=child.val().name+" ("+child.key+")";
-div.onclick=()=>openChat(child.key,child.val().name);
-dialogs.appendChild(div);
-});
-});
+  onValue(ref(db,"users"),(snapshot)=>{
+    dialogs.innerHTML="";
+    snapshot.forEach(child=>{
+      if(child.key===currentUser.username) return;
+      const div=document.createElement("div");
+      div.className="dialog";
+      div.innerText=child.val().name+" ("+child.key+")";
+      div.onclick=()=>openChat(child.key,child.val().name);
+      dialogs.appendChild(div);
+    });
+  });
 }
 
 function openChat(username,name){
-currentChat=username;
-chatHeader.innerText=name;
-loadMessages();
+  currentChat=username;
+  chatHeader.innerText=name;
+  loadMessages();
 }
 
 function loadMessages(){
-const id=chatId(currentUser.username,currentChat);
-onValue(ref(db,"privateChats/"+id),(snapshot)=>{
-messages.innerHTML="";
-snapshot.forEach(child=>{
-const data=child.val();
-const div=document.createElement("div");
-div.className="msg";
-if(data.sender===currentUser.username) div.classList.add("me");
+  const id=chatId(currentUser.username,currentChat);
+  onValue(ref(db,"privateChats/"+id),(snapshot)=>{
+    messages.innerHTML="";
+    snapshot.forEach(child=>{
+      const data=child.val();
+      const div=document.createElement("div");
+      div.className="msg";
+      if(data.sender===currentUser.username) div.classList.add("me");
 
-if(data.image){
-div.innerHTML=data.text?data.text+"<br>":"";
-const img=document.createElement("img");
-img.src=data.image;
-div.appendChild(img);
-}else{
-div.innerText=data.text;
-}
+      if(data.image){
+        div.innerHTML=data.text?data.text+"<br>":"";
+        const img=document.createElement("img");
+        img.src=data.image;
+        div.appendChild(img);
+      } else {
+        div.innerText=data.text;
+      }
 
-messages.appendChild(div);
-});
-messages.scrollTop=messages.scrollHeight;
-});
+      messages.appendChild(div);
+    });
+    messages.scrollTop=messages.scrollHeight;
+  });
 }
 
 window.sendMessage=async function(){
-if(!currentChat) return alert("Выберите диалог");
+  if(!currentChat) return alert("Выберите диалог");
 
-let text=textInput.value.trim();
-let file=imageInput.files[0];
-let id=chatId(currentUser.username,currentChat);
+  let text=textInput.value.trim();
+  let file=imageInput.files[0];
+  let id=chatId(currentUser.username,currentChat);
 
-let messageData={
-sender:currentUser.username,
-text:text||"",
-time:Date.now()
-};
+  let messageData={
+    sender:currentUser.username,
+    text:text||"",
+    time:Date.now()
+  };
 
-if(file){
-const storageRef=sRef(storage,"chatImages/"+Date.now()+"_"+file.name);
-await uploadBytes(storageRef,file);
-const url=await getDownloadURL(storageRef);
-messageData.image=url;
-}
+  if(file){
+    const storageRef=sRef(storage,"chatImages/"+Date.now()+"_"+file.name);
+    await uploadBytes(storageRef,file);
+    const url=await getDownloadURL(storageRef);
+    messageData.image=url;
+  }
 
-if(!text && !file) return;
+  if(!text && !file) return;
 
-await push(ref(db,"privateChats/"+id),messageData);
+  await push(ref(db,"privateChats/"+id),messageData);
 
-textInput.value="";
-imageInput.value="";
+  textInput.value="";
+  imageInput.value="";
 }
 
 </script>
